@@ -1,0 +1,44 @@
+# This is the template used for building and pushing Docker Images to a Docker repo.
+# INPUTS:
+# - image: Image name
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: ci-docker
+spec:
+  templates:
+  - name: ci-dind
+    inputs:
+      parameters:
+      - name: image
+      - name: tag
+      - name: dockerfile
+    container:
+      image: docker:stable
+      command: [sh, -c]
+      args: ["until docker ps; do sleep 3; done && 
+      docker build -f $(DOCKERFILE)
+      -t $(IMAGE):$(TAG) . && 
+      docker push $(IMAGE):$(TAG) && 
+      docker tag $(IMAGE):$(TAG) $(IMAGE):latest && 
+      docker push $(IMAGE):latest"]
+      workingDir: /code
+      volumeMounts:
+      - name: docker-volume
+        mountPath: "/root/.docker"
+        readOnly: true
+      env:
+      - name: DOCKER_HOST
+        value: 127.0.0.1
+      - name: IMAGE
+        value: "{{inputs.parameters.image}}"
+      - name: TAG
+        value: "{{input.parameters.tag}}"
+      - name: DOCKERFILE
+        value: "{{input.parameters.dockerfile}}"
+    sidecars:
+    - name: dind
+      image: docker:stable-dind
+      securityContext:
+        privileged: true
+      mirrorVolumeMounts: true

@@ -1,0 +1,246 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: go-test-pipeline-
+spec:
+  # Use his secret to pull images.
+  imagePullSecrets:
+  - name: dockerhub
+  # Git secret to clone the code from a remote repository.
+  volumes:
+  - name: git-secret
+    secret:
+      secretName: git-secret
+      defaultMode: 256
+  # Volume for the Docker secret which will be used to push images to a remote repository.
+  - name: docker-volume
+    secret:
+      secretName: "{{workflow.parameters.dockerSecretName}}"
+      defaultMode: 0600
+      items:
+      - key: .dockerconfigjson
+        path: config.json
+  # Entrypoint is the template which will run when this workflow is called.
+  entrypoint: go-test-pipeline
+  # These are the workflow arguments, which are global arguments that are used in all templates.
+  # Kubebuild also injects some workflow variables:
+  # https://docs.kubebuild.com/default-params
+  arguments:
+    parameters:
+    - name: dockerSecretName
+      value: dockerhub
+    - name: helmOutputKubefile
+      value: helm.yaml
+    - name: helmOutputIstiofile
+      value: helm-istio.yaml
+  # Below are templates from each operation.
+  templates:
+  - name: sleep
+    container:
+      image: alpine:latest
+      command: [sh, -c]
+      args: ["echo sleeping; sleep 300; echo done"]
+  # This is the template used for building and pushing Docker Images to a Docker repo.
+  # INPUTS:
+  # - image: Image name
+  - name: ci-dind
+    inputs:
+      artifacts:
+      - name: go-test-source-code
+        path: /code
+        git:
+          repo: "{{workflow.parameters.repo}}"
+          revision: "{{workflow.parameters.revision}}"
+          sshPrivateKeySecret:
+            name: git-secret
+            key: sshPrivateKey
+      parameters:
+      - name: image
+    container:
+      image: docker:stable
+      command: [sh, -c]
+      args: ["until docker ps; do sleep 3; done && 
+      docker build 
+      -t $(IMAGE):$(TAG) . && 
+      docker push $(IMAGE):$(TAG) && 
+      docker tag $(IMAGE):$(TAG) $(IMAGE):latest && 
+      docker push $(IMAGE):latest"]
+      workingDir: /code
+      volumeMounts:
+      - name: docker-volume
+        mountPath: "/root/.docker"
+        readOnly: true
+      env:
+      - name: DOCKER_HOST
+        value: 127.0.0.1
+      - name: IMAGE
+        value: "{{inputs.parameters.image}}"
+      - name: TAG
+        value: "{{workflow.parameters.buildNumber}}"
+    sidecars:
+    - name: dind
+      image: docker:stable-dind
+      securityContext:
+        privileged: true
+      mirrorVolumeMounts: true
+  # This template is used to create files from the interpolation of the helm templates and custom values.
+  # INPUTS:
+  # - additionalParameters: multiple pairs of parameters described by --set flags.
+  # - image: Docker image name (can be blank for Istio templates)
+  # - helmFolder: The name of the folder from where helm will generate the finished file.
+  # - outputName: the name of the file which helm will generate.
+  - name: helm-template
+    inputs:
+      parameters:
+      - name: additionalParameters
+      - name: image
+      - name: helmFolder
+      - name: outputName
+      artifacts:
+      - name: go-test-source-code
+        path: /code
+        git:
+          repo: "{{workflow.parameters.repo}}"
+          revision: "{{workflow.parameters.revision}}"
+          sshPrivateKeySecret:
+            name: git-secret
+            key: sshPrivateKey
+    container: 
+      image: alpine/helm
+      command: [sh, -c]
+      args: ["helm template --set image=$(IMAGE):$(TAG) $(ADDITIONAL_PARAMETERS) $(HELM_FOLDER) > $(OUTPUT_NAME)"]
+      env:
+      - name: ADDITIONAL_PARAMETERS
+        value: "{{inputs.parameters.additionalParameters}}"
+      - name: IMAGE
+        value: "{{inputs.parameters.image}}"
+      - name: TAG
+        value: "{{workflow.parameters.buildNumber}}"
+      - name: HELM_FOLDER
+        value: "{{inputs.parameters.helmFolder}}"
+      - name: OUTPUT_NAME
+        value: "{{inputs.parameters.outputName}}"
+      workingDir: /code
+  # It uploads the resulting file to S3 as an artifact.
+    outputs:
+      artifacts:
+      - name: helmResult
+        path: "/code/{{inputs.parameters.outputName}}"
+  # This template uses kubectl to deploy to Kubernetes.
+  - name: kubectl
+    inputs:
+      artifacts:
+      - name: kubefile
+        path: "/code/{{workflow.parameters.helmOutputKubefile}}"
+    container:
+      image: cloudhero/kubectl:1.10.0
+      command: ["kubectl"]
+      args: ["apply","-f","$(KUBEFILE)"]
+      env:
+      - name: KUBEFILE
+        value: "{{workflow.parameters.helmOutputKubefile}}"
+      workingDir: /code
+  # This template uses istio to deploy the Istio files.
+  - name: istioctl
+    inputs:
+      artifacts:
+      - name: istiofile
+        path: "/code/{{workflow.parameters.helmOutputIstiofile}}"
+    container:
+      image: cloudhero/istioctl:1.0.3
+      command: [sh, -c]
+      args: ["istioctl create -f $(ISTIOFILE) || istioctl replace -f $(ISTIOFILE)"]
+      env:
+      - name: ISTIOFILE
+        value: "{{workflow.parameters.helmOutputIstiofile}}"
+      workingDir: /code
+  # Running a container using the finished image.
+  - name: go-test-server
+    inputs:
+      parameters:
+      - name: image
+      - name: port
+    daemon: true
+    container:
+      image: "{{inputs.parameters.image}}"
+      ports:
+      - containerPort: 8080
+  # Curl container to send some requests to our application.
+  - name: go-test-client
+    inputs:
+      parameters:
+      - name: cmd
+    container:
+      image: appropriate/curl
+      command: ["/bin/sh","-c"]
+      args: ["{{inputs.parameters.cmd}}"]
+      resources:
+        requests:
+          memory: 32Mi
+          cpu: 100m
+  # Template which encompasses the server and client from above.
+  - name: e2e-test
+    inputs:
+      parameters:
+      - name: image
+      - name: port
+    steps:
+    - - name: go-test-server
+        template: go-test-server
+        arguments:
+          parameters:
+          - name: image
+            value: "{{inputs.parameters.image}}"
+          - name: port
+            value: "{{inputs.parameters.port}}"
+    - - name: go-test-client
+        template: go-test-client
+        arguments:
+          parameters:
+          - name: cmd
+            value: curl -XGET 'http://{{steps.go-test-server.ip}}:{{inputs.parameters.port}}'
+  # Tempalate which encomposes helm, kubectl and Istio to make the full deployment.
+  - name: deploy
+    steps:
+    - - name: helm-kubectl
+        template: helm-template
+        arguments:
+          parameters: [{name: additionalParameters, value: --set namespace=go-test --set containerPort=8080 --set suffix=},
+                        {name: image, value: cloudhero/go-test},
+                        {name: helmFolder, value: helm},
+                        {name: outputName, value: "{{workflow.parameters.helmOutputKubefile}}"}]
+      - name: helm-istio
+        template: helm-template
+        arguments:
+          parameters: [{name: additionalParameters, value: --set namespace=go-test --set suffix=},
+                        {name: image, value: ""},
+                        {name: helmFolder, value: helm-istio},
+                        {name: outputName, value: "{{workflow.parameters.helmOutputIstiofile}}"}]
+    - - name: kubectl-deploy
+        template: kubectl
+        arguments:
+          artifacts:
+          - name: kubefile
+            from: "{{steps.helm-kubectl.outputs.artifacts.helmResult}}"
+      - name: istio-deploy
+        template: istioctl
+        arguments:
+          artifacts:
+          - name: istiofile
+            from: "{{steps.helm-istio.outputs.artifacts.helmResult}}"
+  # The entrypoint which runs all the pipeline.
+  - name: go-test-pipeline
+    steps:
+    - - name: build
+        template: ci-dind
+        arguments:
+          parameters: [{name: image, value: cloudhero/go-test}]
+    - - name: e2e-test
+        template: e2e-test
+        arguments:
+          parameters: [{name: image, value: cloudhero/go-test},
+                        {name: port, value: 8080}]
+    - - name: deploy
+        template: deploy
+        # Only deploy if the branch is not feature.
+        when: "'{{workflow.parameters.branch}}' !~ 'feature.*'"

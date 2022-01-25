@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: app-pipeline-
+spec:
+  entrypoint: app-pipeline
+  templates:
+  - name: app-pipeline
+    inputs:
+      artifacts:
+      - name: code
+        path: /code
+        git:
+          repo: https://github.com/cloud-hero/cncf-ro-demo.git
+          revision: "master"
+    steps:
+    - - name: build
+        template: ci-docker
+        arguments:
+          parameters: [{name: image, value: 192.168.56.4:5000/testimage},
+                        {name: tag, value: latest},
+                        {name: dockerfile, value: "rgb-containers/Dockerfile-blue"}]
