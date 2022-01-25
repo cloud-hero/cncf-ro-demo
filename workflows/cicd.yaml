@@ -15,4 +15,6 @@ spec:
           parameters: [{name: image, value: 192.168.56.4:5000/testimage},
                         {name: tag, value: latest},
                         {name: context, value: rgb-containers},
-                        {name: dockerfile, value: "Dockerfile-blue"}]
+                        {name: dockerfile, value: "Dockerfile-blue"},
+                        {name: repo, value: "https://github.com/cloud-hero/cncf-ro-demo.git"},
+                        {name: revision, value: "master"}]
