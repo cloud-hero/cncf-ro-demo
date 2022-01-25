@@ -9,12 +9,6 @@ spec:
   templates:
   - name: ci-dind
     inputs:
-      artifacts:
-      - name: code
-        path: /workspace
-        git:
-          repo: "{{inputs.parameters.repo}}"
-          revision: "{{inputs.parameters.revision}}"
       parameters:
       - name: image
       - name: tag
@@ -22,6 +16,12 @@ spec:
       - name: context
       - name: repo
       - name: revision
+      artifacts:
+      - name: code
+        path: /workspace
+        git:
+          repo: "{{inputs.parameters.repo}}"
+          revision: "{{inputs.parameters.revision}}"
     container:
       image: gcr.io/kaniko-project/executor:debug
       command: [sh, -c]
