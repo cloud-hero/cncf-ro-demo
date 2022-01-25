@@ -9,36 +9,28 @@ spec:
   templates:
   - name: ci-dind
     inputs:
+      artifacts:
+      - name: code
+        path: /workspace
+        git:
+          repo: https://github.com/cloud-hero/cncf-ro-demo.git
+          revision: "master"
       parameters:
       - name: image
       - name: tag
       - name: dockerfile
+      - name: context
     container:
-      image: docker:stable
+      image: gcr.io/kaniko-project/executor:debug
       command: [sh, -c]
-      args: ["until docker ps; do sleep 3; done && 
-      docker build -f $(DOCKERFILE)
-      -t $(IMAGE):$(TAG) . && 
-      docker push $(IMAGE):$(TAG) && 
-      docker tag $(IMAGE):$(TAG) $(IMAGE):latest && 
-      docker push $(IMAGE):latest"]
-      workingDir: /code
-      volumeMounts:
-      - name: docker-volume
-        mountPath: "/root/.docker"
-        readOnly: true
+      args: ["/kaniko/executor --context dir:///workspace/$CONTEXT --dockerfile $DOCKERFILE --destination $IMAGE:$TAG --skip-tls-verify"]
+      workingDir: /workspace
       env:
-      - name: DOCKER_HOST
-        value: 127.0.0.1
       - name: IMAGE
         value: "{{inputs.parameters.image}}"
       - name: TAG
-        value: "{{input.parameters.tag}}"
+        value: "{{inputs.parameters.tag}}"
+      - name: CONTEXT
+        value: "{{inputs.parameters.context}}"
       - name: DOCKERFILE
-        value: "{{input.parameters.dockerfile}}"
-    sidecars:
-    - name: dind
-      image: docker:stable-dind
-      securityContext:
-        privileged: true
-      mirrorVolumeMounts: true
+        value: "{{inputs.parameters.dockerfile}}"

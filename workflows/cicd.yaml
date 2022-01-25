@@ -6,17 +6,13 @@ spec:
   entrypoint: app-pipeline
   templates:
   - name: app-pipeline
-    inputs:
-      artifacts:
-      - name: code
-        path: /code
-        git:
-          repo: https://github.com/cloud-hero/cncf-ro-demo.git
-          revision: "master"
     steps:
     - - name: build
-        template: ci-docker
+        templateRef: 
+          name: ci-docker
+          template: ci-dind
         arguments:
           parameters: [{name: image, value: 192.168.56.4:5000/testimage},
                         {name: tag, value: latest},
-                        {name: dockerfile, value: "rgb-containers/Dockerfile-blue"}]
+                        {name: context, value: rgb-containers},
+                        {name: dockerfile, value: "Dockerfile-blue"}]
