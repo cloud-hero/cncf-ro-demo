@@ -20,6 +20,8 @@ spec:
       - name: tag
       - name: dockerfile
       - name: context
+      - name: repo
+      - name: revision
     container:
       image: gcr.io/kaniko-project/executor:debug
       command: [sh, -c]
