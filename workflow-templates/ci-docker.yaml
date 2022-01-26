@@ -1,6 +1,11 @@
 # This is the template used for building and pushing Docker Images to a Docker repo.
 # INPUTS:
 # - image: Image name
+# - tag: Image tag
+# - dockerfile: Dockerfile path within the context
+# - context: Folder where to build the Docker image from
+# - repo: Git repo to pull from
+# - revision: Branch name of tag
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:

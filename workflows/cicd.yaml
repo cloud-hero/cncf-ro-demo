@@ -7,13 +7,35 @@ spec:
   templates:
   - name: app-pipeline
     steps:
-    - - name: build
+    - - name: build-red
         templateRef: 
           name: ci-docker
           template: ci-dind
         arguments:
-          parameters: [{name: image, value: 192.168.56.4:5000/testimage},
-                        {name: tag, value: latest},
+          parameters: [{name: image, value: 192.168.56.4:5000/rgb-nginx},
+                        {name: tag, value: red},
+                        {name: context, value: rgb-containers},
+                        {name: dockerfile, value: "Dockerfile-blue"},
+                        {name: repo, value: "https://github.com/cloud-hero/cncf-ro-demo.git"},
+                        {name: revision, value: "master"}]
+      - name: build-green
+        templateRef: 
+          name: ci-docker
+          template: ci-dind
+        arguments:
+          parameters: [{name: image, value: 192.168.56.4:5000/rgb-nginx},
+                        {name: tag, value: green},
+                        {name: context, value: rgb-containers},
+                        {name: dockerfile, value: "Dockerfile-blue"},
+                        {name: repo, value: "https://github.com/cloud-hero/cncf-ro-demo.git"},
+                        {name: revision, value: "master"}]
+      - name: build-blue
+        templateRef: 
+          name: ci-docker
+          template: ci-dind
+        arguments:
+          parameters: [{name: image, value: 192.168.56.4:5000/rgb-nginx},
+                        {name: tag, value: blue},
                         {name: context, value: rgb-containers},
                         {name: dockerfile, value: "Dockerfile-blue"},
                         {name: repo, value: "https://github.com/cloud-hero/cncf-ro-demo.git"},
