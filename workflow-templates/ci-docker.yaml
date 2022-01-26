@@ -12,7 +12,7 @@ metadata:
   name: ci-docker
 spec:
   templates:
-  - name: ci-dind
+  - name: ci-docker
     inputs:
       parameters:
       - name: image

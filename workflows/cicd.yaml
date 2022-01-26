@@ -3,6 +3,26 @@ kind: Workflow
 metadata:
   generateName: app-pipeline-
 spec:
+  arguments:
+    parameters:
+    - name: redTag
+      value: red-1
+    - name: greenTag
+      value: green-1
+    - name: blueTag
+      value: blue-1
+    - name: image
+      value: 192.168.56.4:5000/rgb-nginx
+    - name: repo
+      value: "https://github.com/cloud-hero/cncf-ro-demo.git"
+    - name: context
+      value: rgb-containers
+    - name: revision
+      value: master
+    - name: chart
+      value: cncf-chart
+    - name: chart_repo
+      value: "https://cncf-ro-charts.s3.eu-central-1.amazonaws.com/stable/cncf-chart"
   entrypoint: app-pipeline
   templates:
   - name: app-pipeline
@@ -10,33 +30,61 @@ spec:
     - - name: build-red
         templateRef: 
           name: ci-docker
-          template: ci-dind
+          template: ci-docker
         arguments:
-          parameters: [{name: image, value: 192.168.56.4:5000/rgb-nginx},
-                        {name: tag, value: red},
-                        {name: context, value: rgb-containers},
+          parameters: [{name: image, value: {"key": "{{workflow.parameters.image}}"}},
+                        {name: tag, value: {"key": "{{workflow.parameters.redTag}}"}},
+                        {name: context, value: {"key": "{{workflow.parameters.rgb-containers}}"}},
                         {name: dockerfile, value: "Dockerfile-red"},
-                        {name: repo, value: "https://github.com/cloud-hero/cncf-ro-demo.git"},
-                        {name: revision, value: "master"}]
+                        {name: repo, value: {"key": "{{workflow.parameters.repo}}"}},
+                        {name: revision, value: {"key": "{{workflow.parameters.revision}}"}}]
       - name: build-green
         templateRef: 
           name: ci-docker
-          template: ci-dind
+          template: ci-docker
         arguments:
-          parameters: [{name: image, value: 192.168.56.4:5000/rgb-nginx},
-                        {name: tag, value: green},
-                        {name: context, value: rgb-containers},
+          parameters: [{name: image, value: {"key": "{{workflow.parameters.image}}"}},
+                        {name: tag, value: {"key": "{{workflow.parameters.greenTag}}"}},
+                        {name: context, value: {"key": "{{workflow.parameters.rgb-containers}}"}},
                         {name: dockerfile, value: "Dockerfile-green"},
-                        {name: repo, value: "https://github.com/cloud-hero/cncf-ro-demo.git"},
-                        {name: revision, value: "master"}]
+                        {name: repo, value: {"key": "{{workflow.parameters.repo}}"}},
+                        {name: revision, value: {"key": "{{workflow.parameters.revision}}"}}]
       - name: build-blue
         templateRef: 
           name: ci-docker
-          template: ci-dind
+          template: ci-docker
         arguments:
-          parameters: [{name: image, value: 192.168.56.4:5000/rgb-nginx},
-                        {name: tag, value: blue},
-                        {name: context, value: rgb-containers},
+          parameters: [{name: image, value: {"key": "{{workflow.parameters.image}}"}},
+                        {name: tag, value: {"key": "{{workflow.parameters.blueTag}}"}},
+                        {name: context, value: {"key": "{{workflow.parameters.rgb-containers}}"}},
                         {name: dockerfile, value: "Dockerfile-blue"},
-                        {name: repo, value: "https://github.com/cloud-hero/cncf-ro-demo.git"},
-                        {name: revision, value: "master"}]
+                        {name: repo, value: {"key": "{{workflow.parameters.repo}}"}},
+                        {name: revision, value: {"key": "{{workflow.parameters.revision}}"}}]
+    - - name: deploy-red
+        templateRef: 
+          name: cd-helm
+          template: cd-helm
+        arguments:
+          parameters: [{name: tag, value: {"key": "{{workflow.parameters.redTag}}"}},
+                        {name: release, value: red},
+                        {name: chart, value: {"key": "{{workflow.parameters.chart}}"}},
+                        {name: chart_repo, value: {"key": "{{workflow.parameters.chart_repo}}"}}]
+      - name: deploy-green
+        templateRef: 
+          name: cd-helm
+          template: cd-helm
+        arguments:
+          parameters: [{name: tag, value: {"key": "{{workflow.parameters.greenTag}}"}},
+                        {name: release, value: green},
+                        {name: chart, value: {"key": "{{workflow.parameters.chart}}"}},
+                        {name: chart_repo, value: {"key": "{{workflow.parameters.chart_repo}}"}}]
+      - name: deploy-blue
+        templateRef: 
+          name: cd-helm
+          template: cd-helm
+        arguments:
+          parameters: [{name: tag, value: {"key": "{{workflow.parameters.blueTag}}"}},
+                        {name: release, value: blue},
+                        {name: chart, value: {"key": "{{workflow.parameters.chart}}"}},
+                        {name: chart_repo, value: {"key": "{{workflow.parameters.chart_repo}}"}}]
+                  

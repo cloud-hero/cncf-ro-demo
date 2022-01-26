@@ -1,0 +1,34 @@
+# This is the template used for deploying applications using Helm.
+# INPUTS:
+# - tag: Image tag
+# - release: Name of the Helm Release
+# - chart: Name of the Helm Chart
+# - chart_repo: Name of the Helm Chart Repository
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: cd-helm
+spec:
+  templates:
+  - name: cd-helm
+    inputs:
+      parameters:
+      - name: tag
+      - name: release
+      - name: chart
+      - name: chart_repo
+    container:
+      image: alpine/helm
+      command: [sh, -c]
+      args: ["helm repo add $CHART $CHART_REPO &&
+              helm repo update &&
+              helm upgrade --install $RELEASE cncf-charts/cncf-chart --set image.tag=$TAG"]
+      env:
+      - name: TAG
+        value: "{{inputs.parameters.tag}}"
+      - name: RELEASE
+        value: "{{inputs.parameters.release}}"
+      - name: CHART
+        value: "{{inputs.parameters.chart}}"
+      - name: CHART_REPO
+        value: "{{inputs.parameters.chart_repo}}"
