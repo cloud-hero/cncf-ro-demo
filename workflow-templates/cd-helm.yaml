@@ -4,6 +4,7 @@
 # - release: Name of the Helm Release
 # - chart: Name of the Helm Chart
 # - chart_repo: Name of the Helm Chart Repository
+# - chart_repo_url: URL of the Helm Chart Repository
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
@@ -17,12 +18,13 @@ spec:
       - name: release
       - name: chart
       - name: chart_repo
+      - name: chart_repo_url
     container:
       image: alpine/helm
       command: [sh, -c]
-      args: ["helm repo add $CHART $CHART_REPO &&
+      args: ["helm repo add $CHART_REPO $CHART_REPO_URL &&
               helm repo update &&
-              helm upgrade --install $RELEASE cncf-charts/cncf-chart --set image.tag=$TAG"]
+              helm upgrade --install $RELEASE $CHART_REPO/$CHART --set image.tag=$TAG"]
       env:
       - name: TAG
         value: "{{inputs.parameters.tag}}"
@@ -32,3 +34,5 @@ spec:
         value: "{{inputs.parameters.chart}}"
       - name: CHART_REPO
         value: "{{inputs.parameters.chart_repo}}"
+      - name: CHART_REPO_URL
+        value: "{{inputs.parameters.chart_repo_url}}"
